@@ -105,6 +105,33 @@ function similarEnough(a: string, b: string): boolean {
   const common = [...first].filter((char) => second.includes(char)).length;
   return common / Math.max(first.length, second.length) >= 0.65;
 }
+export function findResidenceContinuation(
+  lines: OCRLine[], rawLines: OCRLine[], box: OCRLine['boundingBox'],
+): OCRLine | null {
+  const labelX = lines.find((line) =>
+    Math.abs(line.boundingBox.y - box.y) < box.height * 0.7 &&
+    /(?:residence|thuong tru|cư trú)/i.test(fold(line.text)),
+  )?.boundingBox.x ?? box.x;
+  const candidates = rawLines.filter((line) =>
+    line.boundingBox.y > box.y + box.height * 0.5 &&
+    line.boundingBox.y < box.y + box.height * 2.1 &&
+    line.boundingBox.x >= labelX - 20 &&
+    /\p{L}/u.test(line.text) &&
+    !/\b\d{1,2}[/.-]\d{1,2}[/.-]\d{4}\b/u.test(line.text) &&
+    !/(?:residence|origin|nationality|date of|expiry)/i.test(fold(line.text)),
+  ).sort((a, b) => a.boundingBox.y - b.boundingBox.y || a.boundingBox.x - b.boundingBox.x);
+  const first = candidates[0];
+  if (!first || first.boundingBox.height < 25) return null;
+  const sameRow = candidates.filter((line) =>
+    Math.abs(line.boundingBox.y - first.boundingBox.y) < Math.min(first.boundingBox.height, line.boundingBox.height) * 0.5,
+  ).sort((a, b) => a.boundingBox.x - b.boundingBox.x);
+  const x = Math.min(...sameRow.map((line) => line.boundingBox.x));
+  const y = Math.min(...sameRow.map((line) => line.boundingBox.y));
+  const right = Math.max(...sameRow.map((line) => line.boundingBox.x + line.boundingBox.width));
+  const bottom = Math.max(...sameRow.map((line) => line.boundingBox.y + line.boundingBox.height));
+  return { ...first, text: sameRow.map((line) => line.text).join(' '),
+    boundingBox: { x, y, width: right - x, height: bottom - y } };
+}
 export async function refineVietnameseFields(
   image: HTMLCanvasElement,
   lines: OCRLine[],
@@ -177,17 +204,8 @@ export async function refineVietnameseFields(
         const match = value.match(/(?:residence|cư trú)\s*[:：]?\s*(.+)$/iu);
         if (match) value = match[1]!.trim();
         else if (value.includes(':')) value = value.slice(value.lastIndexOf(':') + 1).trim();
-        const next = lines
-          .filter(
-            (line) =>
-              line.boundingBox.y > box.y + box.height * 0.5 &&
-              line.boundingBox.y < box.y + box.height * 2.1 &&
-              line.boundingBox.x < box.x + box.width &&
-              !/\b\d{1,2}[/.-]\d{1,2}[/.-]\d{4}\b/u.test(line.text) &&
-              !/(?:residence|origin|nationality|date of)/i.test(fold(line.text)),
-          )
-          .sort((a, b) => a.boundingBox.y - b.boundingBox.y)[0];
-        if (next?.boundingBox.height && next.boundingBox.height >= 25) {
+        const next = findResidenceContinuation(lines, rawLines, box);
+        if (next) {
           await worker.setParameters({ tessedit_pageseg_mode: PSM.RAW_LINE });
           const continuation = await worker.recognize(cropLine(image, next.boundingBox, 2, 0.08));
           const enhanced = await worker.recognize(thresholdCanvas(cropLine(image, next.boundingBox, 3), 120));
