@@ -1,12 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { advanceCaptureProgress, evaluateFrame } from '../demo/camera-detection';
+import { advanceCaptureProgress, detectAlignedCard, evaluateFrame } from '../demo/camera-detection';
 
-function frame(width: number, height: number, pixel: (x: number, y: number) => number): ImageData {
+function frame(
+  card?: { left: number; top: number; right: number; bottom: number },
+  shift = 0,
+): ImageData {
+  const width = 240;
+  const height = 152;
   const data = new Uint8ClampedArray(width * height * 4);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
+      const inside = card && x >= card.left + shift && x < card.right + shift &&
+        y >= card.top && y < card.bottom;
+      const detail = Math.floor(x / 4) % 2 && Math.floor(y / 4) % 2;
+      const value = inside ? (detail ? 205 : 120) : (detail ? 95 : 55);
       const offset = (y * width + x) * 4;
-      data.fill(pixel(x, y), offset, offset + 3);
+      data.fill(value, offset, offset + 3);
       data[offset + 3] = 255;
     }
   }
@@ -14,29 +23,31 @@ function frame(width: number, height: number, pixel: (x: number, y: number) => n
 }
 
 describe('camera capture gate', () => {
-  it('rejects a blank frame and a moving frame, then accepts a stable detailed frame', () => {
-    const blank = frame(80, 50, () => 120);
-    expect(evaluateFrame(blank, evaluateFrame(blank).gray).ready).toBe(false);
+  const aligned = { left: 16, top: 12, right: 224, bottom: 140 };
 
-    const detailed = frame(80, 50, (x, y) => ((Math.floor(x / 4) + Math.floor(y / 4)) % 2 ? 210 : 55));
-    const first = evaluateFrame(detailed);
-    expect(first.ready).toBe(false);
-    const still = evaluateFrame(detailed, first.gray);
-    expect(still.ready).toBe(true);
-
-    const shifted = frame(80, 50, (x, y) => ((Math.floor((x + 4) / 4) + Math.floor(y / 4)) % 2 ? 210 : 55));
-    expect(evaluateFrame(shifted, first.gray).ready).toBe(false);
+  it('requires four card edges inside the guide', () => {
+    expect(detectAlignedCard(frame())).toBe(false);
+    expect(detectAlignedCard(frame({ left: 45, top: 34, right: 195, bottom: 118 }))).toBe(false);
+    expect(detectAlignedCard(frame({ left: -20, top: 12, right: 224, bottom: 140 }))).toBe(false);
+    expect(detectAlignedCard(frame(aligned))).toBe(true);
   });
-  it('reaches capture despite ordinary frame motion and exposure changes', () => {
-    const detailed = frame(80, 50, (x, y) => ((Math.floor(x / 4) + Math.floor(y / 4)) % 2 ? 190 : 65));
-    const brighter = frame(80, 50, (x, y) => ((Math.floor(x / 4) + Math.floor(y / 4)) % 2 ? 215 : 90));
-    const first = evaluateFrame(detailed);
-    expect(evaluateFrame(brighter, first.gray).ready).toBe(true);
 
-    let progress = { steadyFrames: 0, usableFrames: 0 };
-    for (let i = 0; i < 8; i++) {
-      progress = advanceCaptureProgress(progress, { ready: false, visualReady: true });
-    }
-    expect(progress.usableFrames).toBe(8);
+  it('captures only after consecutive aligned, still frames', () => {
+    const first = evaluateFrame(frame(aligned));
+    expect(first.ready).toBe(false);
+    const still = evaluateFrame(frame(aligned), first.gray, first.cardBounds);
+    expect(still.ready).toBe(true);
+    const moved = evaluateFrame(frame(aligned, 8), first.gray, first.cardBounds);
+    expect(moved.ready).toBe(false);
+    const background = evaluateFrame(frame(), first.gray, first.cardBounds);
+    expect(background.ready).toBe(false);
+
+    let progress = { steadyFrames: 0 };
+    for (let i = 0; i < 4; i++) progress = advanceCaptureProgress(progress, still);
+    expect(progress.steadyFrames).toBe(4);
+    progress = advanceCaptureProgress(progress, moved);
+    expect(progress.steadyFrames).toBe(0);
+    for (let i = 0; i < 5; i++) progress = advanceCaptureProgress(progress, still);
+    expect(progress.steadyFrames).toBe(5);
   });
 });

@@ -1,5 +1,5 @@
 import { createReader, type DocumentChoice, type DocumentFields, type DocumentType, type ReadProgressStage } from '../src';
-import { advanceCaptureProgress, evaluateFrame } from './camera-detection';
+import { advanceCaptureProgress, evaluateFrame, type CardBounds } from './camera-detection';
 import { normalizeSex, normalizeNationality } from '../src/documents/identity-card/normalize';
 import {
   fieldsFor,
@@ -47,8 +47,8 @@ let cameraStream: MediaStream | undefined;
 let cameraTimer: number | undefined;
 let cameraGeneration = 0;
 let previousFrame: Uint8Array | undefined;
+let previousCardBounds: CardBounds | null = null;
 let steadyFrames = 0;
-let usableFrames = 0;
 let bestCameraFrame: HTMLCanvasElement | undefined;
 let bestCameraSharpness = 0;
 let autoCapturing = false;
@@ -371,18 +371,22 @@ async function inspectCameraFrame() {
   probe.height = 152;
   const context = probe.getContext('2d', { willReadFrequently: true })!;
   context.drawImage(cameraPreview, crop.x, crop.y, crop.width, crop.height, 0, 0, 240, 152);
-  const quality = evaluateFrame(context.getImageData(0, 0, 240, 152), previousFrame);
+  const quality = evaluateFrame(context.getImageData(0, 0, 240, 152), previousFrame, previousCardBounds);
   previousFrame = quality.gray;
-  ({ steadyFrames, usableFrames } = advanceCaptureProgress({ steadyFrames, usableFrames }, quality));
-  if (quality.visualReady && quality.sharpness > bestCameraSharpness) {
+  previousCardBounds = quality.cardBounds;
+  ({ steadyFrames } = advanceCaptureProgress({ steadyFrames }, quality));
+  if (!quality.ready) {
+    bestCameraFrame = undefined;
+    bestCameraSharpness = 0;
+  } else if (quality.sharpness > bestCameraSharpness) {
     bestCameraFrame = captureCard() ?? undefined;
     bestCameraSharpness = quality.sharpness;
   }
-  cardGuide.classList.toggle('ready', quality.visualReady);
-  cameraHint.textContent = quality.visualReady
-    ? `Selecting a clear frame · ${Math.min(usableFrames, 8)}/8`
+  cardGuide.classList.toggle('ready', quality.ready);
+  cameraHint.textContent = quality.ready
+    ? `Card aligned · hold steady ${Math.min(steadyFrames, 5)}/5`
     : quality.reason;
-  if (steadyFrames < 3 && usableFrames < 8) return;
+  if (steadyFrames < 5) return;
   const image = bestCameraFrame ?? captureCard();
   if (!image) return;
   autoCapturing = true;
@@ -407,8 +411,8 @@ function stopCamera() {
   cameraButton.disabled = false;
   cardGuide.classList.remove('ready');
   previousFrame = undefined;
+  previousCardBounds = null;
   steadyFrames = 0;
-  usableFrames = 0;
   bestCameraFrame = undefined;
   bestCameraSharpness = 0;
 }
@@ -452,8 +456,8 @@ cameraButton.addEventListener('click', async () => {
     if (generation !== cameraGeneration) return;
     updateCardGuide();
     previousFrame = undefined;
+    previousCardBounds = null;
     steadyFrames = 0;
-    usableFrames = 0;
     bestCameraFrame = undefined;
     bestCameraSharpness = 0;
     cameraHint.textContent = 'Align the front of the document inside the frame. Capture is automatic when steady.';
