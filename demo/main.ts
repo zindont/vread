@@ -202,9 +202,14 @@ async function process(image: File, fromCamera = false) {
         `Province: ${address.province} (${address.provinceCode})`,
       ].filter(Boolean).join(' · ');
       card.append(title, components);
+      if (address.confidence < 0.8) {
+        const review = document.createElement('p');
+        review.textContent = `Approximate match (${address.confidence.toFixed(2)}) · Review against image`;
+        card.append(review);
+      }
       if (address.currentAdministrativeArea) {
         const current = document.createElement('p');
-        current.textContent = `2025 equivalent: ${address.currentAdministrativeArea.ward}, ${address.currentAdministrativeArea.province}`;
+        current.textContent = `Current administrative area: ${address.currentAdministrativeArea.ward}, ${address.currentAdministrativeArea.province}`;
         card.append(current);
       }
       addressComponents.append(card);

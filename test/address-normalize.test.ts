@@ -32,6 +32,9 @@ describe('administrative address normalization', () => {
       wardCode: '17830', districtCode: '429', provinceCode: '40',
     });
     expect(address?.currentAdministrativeArea).toBeUndefined();
+    const corrected = normalizeDocumentAddress('Nghi Vn, Nghi Lộc, Nghệ An');
+    expect(corrected?.normalized).toBe('Nghi Văn, Nghi Lộc, Nghệ An');
+    expect(corrected?.confidence).toBeLessThan(0.8);
   });
   it('keeps unresolved addresses unchanged instead of guessing', () => {
     expect(normalizeDocumentAddress('Tổ A, Xã Không Có, Huyện Không Có, Khánh Hòa')).toBeNull();
@@ -54,9 +57,39 @@ describe('administrative address normalization', () => {
     expect(address?.normalized).toBe('123 Lê Lợi, P. Bắc Nha Trang, Khánh Hòa');
     expect(address?.district).toBeNull();
   });
+  it('accepts administrative abbreviations attached directly to names', () => {
+    expect(normalizeDocumentAddress('Tổ A, P.Vĩnh Phước, TP.Nha Trang, Khánh Hòa')?.normalized)
+      .toBe('Tổ A, P. Vĩnh Phước, TP. Nha Trang, Khánh Hòa');
+  });
   it('does not reinterpret an old three-level address as a new two-level address', () => {
     const address = normalizeDocumentAddress('Diên Thạnh, Diên Khánh, Khánh Hòa');
     expect(address).toMatchObject({ ward: 'Diên Thạnh', district: 'Diên Khánh', province: 'Khánh Hòa' });
     expect(normalizeDocumentAddress('Tổ 1, Không Rõ, Nha Trang, Khánh Hòa')).toBeNull();
+  });
+  it('reads a separator-free old address while preserving the original OCR text', () => {
+    const address = normalizeDocumentAddress('58 Đường A Vĩnh Phước Nha Trang Khánh Hòa');
+    expect(address).toMatchObject({
+      original: '58 Đường A Vĩnh Phước Nha Trang Khánh Hòa',
+      normalized: '58 Đường A, Phường Vĩnh Phước, Thành phố Nha Trang, Tỉnh Khánh Hòa',
+      ward: 'Vĩnh Phước', district: 'Nha Trang', province: 'Khánh Hòa',
+    });
+    expect(address?.confidence).toBeLessThanOrEqual(0.8);
+  });
+  it('uses a marked district to resolve a separator-free OCR typo', () => {
+    const address = normalizeDocumentAddress('Ấp A Xã Thun Thành Huyện Càn Giuc Tỉnh Long An');
+    expect(address).toMatchObject({ ward: 'Thuận Thành', district: 'Cần Giuộc', province: 'Long An' });
+    expect(address?.confidence).toBeLessThanOrEqual(0.7);
+  });
+  it('marks an automatically corrected OCR address for review', () => {
+    const parsed = {
+      fields: { ...EMPTY_FIELDS, placeOfResidence: 'Ấp A, X. Thun Thành, H. Càn Giuc, T. Long An' },
+      confidence: { placeOfResidence: 0.95 }, evidence: {},
+    };
+    normalizeExtractedAddresses(parsed);
+    expect(parsed.fields.placeOfResidence).toBe('Ấp A, X. Thuận Thành, H. Cần Giuộc, T. Long An');
+    expect(parsed.confidence.placeOfResidence).toBeLessThanOrEqual(0.7);
+  });
+  it('does not turn a separator-free two-level address into an invented old district', () => {
+    expect(normalizeDocumentAddress('123 Đường A Phường Bắc Nha Trang Khánh Hòa')).toBeNull();
   });
 });

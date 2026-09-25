@@ -18,8 +18,8 @@ importers:
         specifier: ^7.0.0
         version: 7.0.0
       vietnam-address-kit:
-        specifier: 1.1.1
-        version: 1.1.1
+        specifier: 1.2.0
+        version: 1.2.0
     devDependencies:
       '@eslint/js':
         specifier: ^9.36.0
@@ -1061,8 +1061,8 @@ packages:
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
 
-  vietnam-address-kit@1.1.1:
-    resolution: {integrity: sha512-bbe7xKTDX60V3kjKF2LylEXEXZUSeZH0uvzzaqIYyWGaI7Jvj1+Iq6UTRpm7C515VlQFUSzjUsq5DUjWwYkA4Q==}
+  vietnam-address-kit@1.2.0:
+    resolution: {integrity: sha512-vaB2iSiNNzcl+ZcCFf5w2AbS2TjpPloLu46afM/SVNlC5c5+sVWJOTNh1XV+t8Aroy2YQR6YQJvVk9VIcldWdQ==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -2086,7 +2086,7 @@ snapshots:
     dependencies:
       punycode: 2.3.1
 
-  vietnam-address-kit@1.1.1:
+  vietnam-address-kit@1.2.0:
     dependencies:
       commander: 12.1.0
 

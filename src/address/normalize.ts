@@ -1,15 +1,15 @@
-import { convertOldToNew, searchProvince, searchWard } from 'vietnam-address-kit';
+import { convertOldToNew, parseAddress, searchProvince, searchWard } from 'vietnam-address-kit';
 import type { ExtractionResult } from '../documents/registry';
 import type { AddressField, NormalizedAddress } from '../core/types';
 import { fold } from '../utils/text';
 
 function stripPrefix(value: string): string {
-  return value.trim().replace(/^(?:xã|phường|thị trấn|huyện|quận|thành phố|tỉnh|x|p|tt|h|q|tp|t)\.?\s+/iu, '');
+  return value.trim().replace(/^(?:(?:x|p|tt|h|q|tp|t)(?:\.\s*|\s+)|(?:xã|phường|thị trấn|đặc khu|huyện|quận|thành phố|tỉnh)\s+)/iu, '');
 }
 
 function displayPart(source: string, canonical: string): string {
-  const prefix = source.match(/^(xã|phường|thị trấn|huyện|quận|thành phố|tỉnh|x|p|tt|h|q|tp|t)\.?(?=\s)/iu)?.[0];
-  return prefix ? `${prefix} ${canonical}` : canonical;
+  const prefix = source.match(/^(?:(?:x|p|tt|h|q|tp|t)(?:\.\s*|\s+)|(?:xã|phường|thị trấn|đặc khu|huyện|quận|thành phố|tỉnh)\s+)/iu)?.[0];
+  return prefix ? `${prefix.trimEnd()} ${canonical}` : canonical;
 }
 
 function similarity(a: string, b: string): number {
@@ -68,7 +68,7 @@ function normalizeThreeLevel(value: string, pieces: string[]): NormalizedAddress
     .filter((match) => match.score >= 0.8).slice(0, 20).map((match) => match.item.name)];
   const matches = provinceCandidates.flatMap((provinceCandidate) => wardCandidates
     .map((wardCandidate) => convertOldToNew({ province: provinceCandidate, district: districtName, ward: wardCandidate })))
-    .filter((result) => result.confidence >= 0.95)
+    .filter((result) => result.confidence >= 0.65)
     .filter((result) => result.oldAddress?.provinceName && result.oldAddress.districtName && result.oldAddress.wardName)
     .map((result) => {
       const provinceScore = similarity(provinceName, result.oldAddress!.provinceName!);
@@ -98,7 +98,7 @@ function normalizeThreeLevel(value: string, pieces: string[]): NormalizedAddress
     ward: old.wardName!, district: old.districtName!, province: old.provinceName!,
     wardCode: old.wardCode!, districtCode: old.districtCode!, provinceCode: old.provinceCode!,
     confidence: Math.min(match.confidence, score),
-    currentAdministrativeArea: match.success && match.newAddress ? {
+    currentAdministrativeArea: match.success && match.strategy !== 'fuzzy' && match.newAddress ? {
       ward: match.newAddress.wardName, province: match.newAddress.provinceName,
       wardCode: match.newAddress.wardCode, provinceCode: match.newAddress.provinceCode,
     } : undefined,
@@ -107,12 +107,20 @@ function normalizeThreeLevel(value: string, pieces: string[]): NormalizedAddress
 
 export function normalizeDocumentAddress(value: string): NormalizedAddress | null {
   const pieces = value.split(',').map((part) => part.trim()).filter(Boolean);
-  if (pieces.length < 2) return null;
+  if (pieces.length < 2) {
+    const parsed = parseAddress(value);
+    if (!parsed.province || !parsed.district || !parsed.ward) return null;
+    if (parsed.approximate && !/(?:^|\s)(?:huyện|quận|thành phố|h\.|q\.|tp\.)/iu.test(value)) return null;
+    const segments = [parsed.streetAddress, parsed.ward, parsed.district, parsed.province].filter((part): part is string => !!part);
+    const normalized = normalizeThreeLevel(value, segments);
+    if (normalized) normalized.confidence = Math.min(normalized.confidence, parsed.approximate ? 0.7 : 0.8);
+    return normalized;
+  }
   if (pieces.length === 2) return normalizeTwoLevel(value, pieces);
   const old = normalizeThreeLevel(value, pieces);
   if (old) return old;
   const street = pieces.slice(0, -2).join(', ');
-  const hasWardPrefix = /^(?:xã|phường|đặc khu|x|p)\.?(?=\s)/iu.test(pieces.at(-2)!);
+  const hasWardPrefix = /^(?:(?:x|p)(?:\.|\s)|(?:xã|phường|đặc khu)\s)/iu.test(pieces.at(-2)!);
   const hasStreetCue = /^(?:\d+|tổ|ấp|thôn|khu phố|đường|ngõ|ngách|hẻm)\b/iu.test(street);
   return hasWardPrefix || (pieces.length === 3 && hasStreetCue) ? normalizeTwoLevel(value, pieces) : null;
 }
@@ -126,6 +134,8 @@ export function normalizeExtractedAddresses(result: ExtractionResult): Partial<R
     if (!normalized) continue;
     addresses[field] = normalized;
     result.fields[field] = normalized.normalized;
+    if (normalized.normalized !== value)
+      result.confidence[field] = Math.min(result.confidence[field] ?? normalized.confidence, normalized.confidence);
   }
   return addresses;
 }
