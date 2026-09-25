@@ -32,22 +32,31 @@ describe('camera capture gate', () => {
     expect(detectAlignedCard(frame(aligned))).toBe(true);
   });
 
-  it('captures only after consecutive aligned, still frames', () => {
+  it('accumulates steady progress through small hand movements but rejects a drifting card', () => {
     const first = evaluateFrame(frame(aligned));
     expect(first.ready).toBe(false);
     const still = evaluateFrame(frame(aligned), first.gray, first.cardBounds);
     expect(still.ready).toBe(true);
     const moved = evaluateFrame(frame(aligned, 8), first.gray, first.cardBounds);
-    expect(moved.ready).toBe(false);
+    expect(moved.ready).toBe(true);
     const background = evaluateFrame(frame(), first.gray, first.cardBounds);
     expect(background.ready).toBe(false);
 
-    let progress = { steadyFrames: 0 };
+    let progress = { steadyFrames: 0, anchorBounds: null as typeof first.cardBounds };
     for (let i = 0; i < 4; i++) progress = advanceCaptureProgress(progress, still);
     expect(progress.steadyFrames).toBe(4);
     progress = advanceCaptureProgress(progress, moved);
-    expect(progress.steadyFrames).toBe(0);
-    for (let i = 0; i < 5; i++) progress = advanceCaptureProgress(progress, still);
     expect(progress.steadyFrames).toBe(5);
+    progress = advanceCaptureProgress(progress, { ...still, ready: false });
+    expect(progress.steadyFrames).toBe(4);
+    progress = advanceCaptureProgress(progress, still);
+    progress = advanceCaptureProgress(progress, still);
+    expect(progress.steadyFrames).toBe(6);
+    progress = advanceCaptureProgress(progress, { ...still, cardBounds: {
+      ...still.cardBounds!, left: still.cardBounds!.left + 19,
+    } });
+    expect(progress.steadyFrames).toBe(1);
+    progress = advanceCaptureProgress(progress, background);
+    expect(progress.steadyFrames).toBe(0);
   });
 });

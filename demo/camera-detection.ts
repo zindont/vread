@@ -12,13 +12,27 @@ export interface FrameQuality {
 
 export interface CaptureProgress {
   steadyFrames: number;
+  anchorBounds: CardBounds | null;
 }
 
 export function advanceCaptureProgress(
   progress: CaptureProgress,
-  quality: Pick<FrameQuality, 'ready'>,
+  quality: Pick<FrameQuality, 'ready' | 'visualReady' | 'cardBounds'>,
 ): CaptureProgress {
-  return { steadyFrames: quality.ready ? progress.steadyFrames + 1 : 0 };
+  if (!quality.visualReady || !quality.cardBounds) {
+    const steadyFrames = Math.max(0, progress.steadyFrames - 2);
+    return { steadyFrames, anchorBounds: steadyFrames ? progress.anchorBounds : null };
+  }
+  const anchor = progress.anchorBounds;
+  const drifted = anchor && Math.max(...(['top', 'bottom', 'left', 'right'] as const)
+    .map((side) => Math.abs(quality.cardBounds![side] - anchor[side]))) > 16;
+  if (drifted) return { steadyFrames: quality.ready ? 1 : 0, anchorBounds: quality.cardBounds };
+  return {
+    steadyFrames: quality.ready
+      ? Math.min(6, progress.steadyFrames + 1)
+      : Math.max(0, progress.steadyFrames - 1),
+    anchorBounds: anchor ?? quality.cardBounds,
+  };
 }
 
 type Side = 'top' | 'bottom' | 'left' | 'right';
@@ -128,9 +142,9 @@ export function evaluateFrame(
   const cardAligned = cardBounds !== null;
   const cardStill = !!cardBounds && !!previousBounds &&
     Math.max(...(['top', 'bottom', 'left', 'right'] as const)
-      .map((side) => Math.abs(cardBounds[side] - previousBounds[side]))) <= 5;
+      .map((side) => Math.abs(cardBounds[side] - previousBounds[side]))) <= 14;
   const visualReady = cardAligned && mean >= 45 && mean <= 225 && contrast >= 18 && sharpness >= 14;
-  const ready = visualReady && cardStill && motion !== null && motion <= 12;
+  const ready = visualReady && cardStill && motion !== null && motion <= 28;
   const reason = !cardAligned
     ? 'Place the whole card inside the frame and align its edges'
     : mean < 45 || mean > 225
