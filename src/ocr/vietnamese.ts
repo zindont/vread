@@ -26,6 +26,34 @@ function cropLine(
   canvas.getContext('2d')!.drawImage(image, x, y, width, height, 0, 0, canvas.width, canvas.height);
   return canvas;
 }
+function cropSkewedName(image: HTMLCanvasElement, box: OCRLine['boundingBox'], rawLines: OCRLine[]): HTMLCanvasElement | null {
+  const parts = rawLines.filter((line) =>
+    line.boundingBox.x >= box.x &&
+    line.boundingBox.x < box.x + box.width &&
+    line.boundingBox.y >= box.y - 2 &&
+    line.boundingBox.y < box.y + box.height * 0.65 &&
+    /^[\p{L}\s]+$/u.test(line.text.trim()) &&
+    !/(?:name|sinh|birth)/i.test(fold(line.text)),
+  ).sort((a, b) => a.boundingBox.x - b.boundingBox.x);
+  if (parts.length < 2) return null;
+  const first = parts[0]!.boundingBox;
+  const last = parts.at(-1)!.boundingBox;
+  const slope = ((last.y + last.height / 2) - (first.y + first.height / 2)) /
+    ((last.x + last.width / 2) - (first.x + first.width / 2));
+  if (!Number.isFinite(slope) || Math.abs(slope) > 0.2) return null;
+  const left = Math.max(0, first.x - 6);
+  const right = Math.min(image.width, last.x + last.width + 6);
+  const top = first.y - 4 - slope * (first.x - left);
+  const height = Math.max(48, Math.min(65, first.height + 8));
+  const scale = 4;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.ceil((right - left) * scale);
+  canvas.height = height * scale;
+  const context = canvas.getContext('2d')!;
+  context.setTransform(scale, -slope * scale, 0, scale, -left * scale, (-top + slope * left) * scale);
+  context.drawImage(image, 0, 0);
+  return canvas;
+}
 function cleanText(text: string): string {
   return text
     .trim()
@@ -93,7 +121,8 @@ export async function refineVietnameseFields(
       const box = evidence?.box;
       if (!box || box.height < 25) continue;
       let target = box;
-      let trustedStreetNumber: string | undefined;
+      let trustedStreetNumber: string | undefined = field === 'placeOfResidence'
+        ? evidence?.rawText?.match(/^\d{1,4}(?=\s)/u)?.[0] : undefined;
       if (
         field === 'placeOfResidence' &&
         lines.some(
@@ -132,7 +161,12 @@ export async function refineVietnameseFields(
           target = { ...box, x: start, width: box.x + box.width - start };
         }
       }
-      const { data } = await worker.recognize(cropLine(image, target, trustedStreetNumber ? 4 : 3));
+      const skewedName = field === 'fullName' ? cropSkewedName(image, box, rawLines) : null;
+      const readings = [
+        (await worker.recognize(cropLine(image, target, trustedStreetNumber ? 4 : 3))).data,
+        ...(skewedName ? [(await worker.recognize(skewedName)).data] : []),
+      ];
+      const data = readings.sort((a, b) => b.confidence - a.confidence)[0]!;
       let value = cleanText(data.text);
       if (field === 'placeOfResidence') {
         if (trustedStreetNumber) {
@@ -148,7 +182,9 @@ export async function refineVietnameseFields(
             (line) =>
               line.boundingBox.y > box.y + box.height * 0.5 &&
               line.boundingBox.y < box.y + box.height * 2.1 &&
-              Math.abs(line.boundingBox.x - box.x) < box.width * 0.2,
+              line.boundingBox.x < box.x + box.width &&
+              !/\b\d{1,2}[/.-]\d{1,2}[/.-]\d{4}\b/u.test(line.text) &&
+              !/(?:residence|origin|nationality|date of)/i.test(fold(line.text)),
           )
           .sort((a, b) => a.boundingBox.y - b.boundingBox.y)[0];
         if (next?.boundingBox.height && next.boundingBox.height >= 25) {

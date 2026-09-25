@@ -14,8 +14,8 @@ function frontLines(lines: OCRLine[]): OCRLine[] {
 export const identityCardAdapter: DocumentAdapter = {
   id: 'vn.identity_card',
   detect: classifyIdentity,
-  extract: (lines) => {
-    const result = extractFields(frontLines(lines));
+  extract: (lines, _detection, rawLines = lines) => {
+    const result = extractFields(frontLines(lines), frontLines(rawLines));
     // Paddle's Latin recognizer supplies anchors and candidate boxes. Free-form
     // Vietnamese strings are published only after the Vietnamese OCR pass.
     for (const field of ['fullName', 'placeOfOrigin', 'placeOfResidence'] as const) {

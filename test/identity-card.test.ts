@@ -248,6 +248,22 @@ describe('identity card parser', () => {
     const lines = [line('Coffee menu', 0), line('Price 100000', 30)];
     expect(classifyIdentity(lines, { detected: false }).type).toBe('unknown');
   });
+  it('recovers fields from tilted OCR rows with split labels and values', () => {
+    const tilted = [
+      line('CAN CUOC CONG DAN', 0),
+      line('SO/NO 079091001234', 30),
+      line('H va tn/ R name', 60),
+      line('NGUYEN VAN A', 83),
+      line('Que quan / Place of origin', 160),
+      { ...line('Xa A, Huyen B, Tinh C', 183), boundingBox: { x: 10, y: 170, width: 220, height: 33 } },
+      line('Noi thuong tru / Place of residence 58 Doan Tran', 210),
+      line('Nghiep, Phuong D, Thanh pho E', 240),
+    ];
+    const parsed = extractFields(tilted);
+    expect(parsed.fields.idNumber).toBe('079091001234');
+    expect(parsed.evidence.fullName?.rawText).toBe('NGUYEN VAN A');
+    expect(parsed.evidence.placeOfOrigin?.rawText).toBe('Xa A, Huyen B, Tinh C');
+  });
 });
 describe('QR', () => {
   it('parses the common seven-part format', () => {

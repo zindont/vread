@@ -1,7 +1,8 @@
 import { fold } from '../../utils/text';
 export function normalizeId(text: string): string | null {
-  const value = text.replace(/[Oo]/g, '0').replace(/[Il|]/g, '1').replace(/\s/g, '');
-  const m = value.match(/(?:^|\D)(\d{12})(?:\D|$)/);
+  const value = text.replace(/[Oo]/g, '0').replace(/[Il|]/g, '1');
+  const m = value.match(/(?:^|\D)(\d{12})(?:\D|$)/) ??
+    value.replace(/\s/g, '').match(/(?:^|\D)(\d{12})(?:\D|$)/);
   return m?.[1] ?? null;
 }
 export function normalizeSex(text: string): 'M' | 'F' | null {

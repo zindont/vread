@@ -8,7 +8,7 @@ import { normalizeId, normalizeName, normalizeSex, normalizeNationality } from '
 type IdentityFieldName = keyof IdentityFields;
 const LABELS: Partial<Record<IdentityFieldName, string[]>> = {
   idNumber: ['so', 'no', 'so dinh danh ca nhan', 'personal identification number'],
-  fullName: ['ho va ten', 'ho chu dem va ten khai sinh', 'full name'],
+  fullName: ['ho va ten', 'ho chu dem va ten khai sinh', 'full name', 'name'],
   dateOfBirth: ['ngay sinh', 'ngay thang nam sinh', 'date of birth'],
   sex: ['gioi tinh', 'sex'],
   nationality: ['quoc tich', 'nationality'],
@@ -32,6 +32,7 @@ function candidate(
   lines: OCRLine[],
   index: number,
   field: IdentityFieldName,
+  rawLines: OCRLine[],
 ): { line: OCRLine; text: string; score: number } | null {
   const anchor = lines[index]!;
   if (field === 'sex') {
@@ -50,6 +51,26 @@ function candidate(
     if (normalizeNationality(anchor.text)) return { line: anchor, text: anchor.text, score: 0.85 };
   }
   if (field === 'placeOfResidence') {
+    const numberLine = rawLines.find((line) =>
+      /^\d{1,4}\s+\p{L}/u.test(line.text.trim()) &&
+      line.boundingBox.x > anchor.boundingBox.x + anchor.boundingBox.width * 0.5 &&
+      line.boundingBox.y >= anchor.boundingBox.y - anchor.boundingBox.height * 0.2 &&
+      line.boundingBox.y < anchor.boundingBox.y + anchor.boundingBox.height,
+    );
+    if (numberLine) {
+      const adjacent = rawLines.filter((line) =>
+        line.boundingBox.x >= numberLine.boundingBox.x &&
+        line.boundingBox.y >= numberLine.boundingBox.y - numberLine.boundingBox.height * 0.3 &&
+        line.boundingBox.y < numberLine.boundingBox.y + numberLine.boundingBox.height * 0.7,
+      ).sort((a, b) => a.boundingBox.x - b.boundingBox.x);
+      const right = Math.max(...adjacent.map((line) => line.boundingBox.x + line.boundingBox.width));
+      const bottom = Math.max(...adjacent.map((line) => line.boundingBox.y + line.boundingBox.height));
+      return {
+        line: { ...numberLine, boundingBox: { ...numberLine.boundingBox,
+          width: right - numberLine.boundingBox.x, height: bottom - numberLine.boundingBox.y } },
+        text: adjacent.map((line) => line.text).join(' '), score: 0.9,
+      };
+    }
     const number = anchor.text.match(/(?:^|\s)(\d{1,4})(?=\s)/u);
     if (!anchor.text.includes(':') && number?.index !== undefined && number[1]!.length >= 2) {
       return { line: anchor, text: anchor.text.slice(number.index).trim(), score: 0.8 };
@@ -68,7 +89,7 @@ function candidate(
       const b = line.boundingBox;
       const dy = b.y - (box.y + box.height),
         dx = Math.abs(b.x - box.x);
-      const below = dy >= -box.height * 0.5 && dy < box.height * 4;
+      const below = dy >= -box.height * 0.8 && dy < box.height * 4;
       const sameRow = Math.abs(b.y - box.y) < box.height * 0.8 && b.x > box.x;
       const geometry = below ? Math.max(0.35, 1 - dy / (box.height * 5)) : sameRow ? 0.8 : 0;
       const penalty = dx > Math.max(box.width * 2, 200) ? 0.35 : 1;
@@ -85,7 +106,7 @@ function candidate(
   nearby.sort((a, b) => b.score - a.score);
   return nearby[0] ?? null;
 }
-export function extractFields(lines: OCRLine[]): ExtractionResult {
+export function extractFields(lines: OCRLine[], rawLines: OCRLine[] = lines): ExtractionResult {
   const result: ExtractionResult = { fields: { ...EMPTY_FIELDS }, confidence: {}, evidence: {} };
   const sorted = [...lines].sort(
     (a, b) => a.boundingBox.y - b.boundingBox.y || a.boundingBox.x - b.boundingBox.x,
@@ -95,7 +116,7 @@ export function extractFields(lines: OCRLine[]): ExtractionResult {
     sorted.forEach((line, index) => {
       const alias = (LABELS[field] ?? []).find((a) => labelScore(line.text, a) >= 0.72);
       if (!alias) return;
-      const found = candidate(sorted, index, field);
+      const found = candidate(sorted, index, field, rawLines);
       if (!found) return;
       const strength = labelScore(line.text, alias);
       let score = fieldScore(found.line.confidence, strength, found.score, true);
