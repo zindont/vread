@@ -1,0 +1,10 @@
+node_modules/
+dist/
+demo/dist/
+fixtures/private/
+.DS_Store
+.playwright-cli/
+vie.traineddata
+.env
+.env.*
+!.env.example
