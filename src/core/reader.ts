@@ -13,6 +13,7 @@ import { DocumentRegistry, type DocumentAdapter } from '../documents/registry';
 import { identityCardAdapter } from '../documents/identity-card';
 import { driverLicenseAdapter } from '../documents/driver-license';
 import { reconcileSexFromIdentityNumber } from '../documents/identity-card/sex-from-id';
+import { normalizeExtractedAddresses } from '../address/normalize';
 export class Reader {
   private registry = new DocumentRegistry();
   constructor(
@@ -106,11 +107,13 @@ export class Reader {
     }
     if (detection.type === 'vn.identity_card') reconcileSexFromIdentityNumber(parsed);
     if (detection.type === 'vn.identity_card') mergeQrFields(parsed, qr);
+    const addresses = normalizeExtractedAddresses(parsed);
     const parseMs = performance.now() - parseStart;
     options.onProgress?.('done');
     return {
       document: detection,
       fields: parsed.fields,
+      addresses,
       confidence: parsed.confidence,
       evidence: parsed.evidence,
       qr,

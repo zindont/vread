@@ -17,6 +17,9 @@ importers:
       tesseract.js:
         specifier: ^7.0.0
         version: 7.0.0
+      vietnam-address-kit:
+        specifier: 1.1.1
+        version: 1.1.1
     devDependencies:
       '@eslint/js':
         specifier: ^9.36.0
@@ -626,6 +629,10 @@ packages:
   color-name@1.1.4:
     resolution: {integrity: sha512-dOy+3AuW3a2wNbZHIuMZpTcgjGuLU/uBL/ubcZF9OXbDo8ff4O8yVp5Bf0efS8uEoYo5q4Fx7dY9OgQGXgAsQA==}
 
+  commander@12.1.0:
+    resolution: {integrity: sha512-Vw8qHK3bZM9y/P10u3Vib8o/DdkvA2OtPtZvD871QKjy74Wj1WSKFILMPRPSdUSx5RFK1arlJzEtA4PkFgnbuA==}
+    engines: {node: '>=18'}
+
   concat-map@0.0.1:
     resolution: {integrity: sha512-/Srv4dswyQNBfohGpz9o6Yb3Gz3SrUDqBH5rTuhGR7ahtlbYKnVxw2bCFMRljaA7EXHaXZ8wsHdodFvbkhKmqg==}
 
@@ -1053,6 +1060,11 @@ packages:
 
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
+
+  vietnam-address-kit@1.1.1:
+    resolution: {integrity: sha512-bbe7xKTDX60V3kjKF2LylEXEXZUSeZH0uvzzaqIYyWGaI7Jvj1+Iq6UTRpm7C515VlQFUSzjUsq5DUjWwYkA4Q==}
+    engines: {node: '>=18'}
+    hasBin: true
 
   vite-node@3.2.4:
     resolution: {integrity: sha512-EbKSKh+bh1E1IFxeO0pg1n4dvoOTt0UDiXMd/qn++r98+jPO1xtJilvXldeuQ8giIB5IkpjCgMleHMNEsGH6pg==}
@@ -1634,6 +1646,8 @@ snapshots:
 
   color-name@1.1.4: {}
 
+  commander@12.1.0: {}
+
   concat-map@0.0.1: {}
 
   cross-spawn@7.0.6:
@@ -2071,6 +2085,10 @@ snapshots:
   uri-js@4.4.1:
     dependencies:
       punycode: 2.3.1
+
+  vietnam-address-kit@1.1.1:
+    dependencies:
+      commander: 12.1.0
 
   vite-node@3.2.4(@types/node@22.20.4):
     dependencies:

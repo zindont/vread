@@ -4,6 +4,25 @@ export type DocumentSide = 'front' | 'back' | 'unknown';
 export type DocumentType = 'vn.identity_card' | 'vn.driver_license' | 'unknown';
 export type DocumentChoice = 'auto' | 'identity-card' | 'driver-license';
 export type FieldName = keyof DocumentFields;
+export type AddressField = 'placeOfOrigin' | 'placeOfResidence';
+export interface NormalizedAddress {
+  original: string;
+  normalized: string;
+  streetAddress: string | null;
+  ward: string;
+  district: string | null;
+  province: string;
+  wardCode: string;
+  districtCode: string | null;
+  provinceCode: string;
+  confidence: number;
+  currentAdministrativeArea?: {
+    ward: string;
+    province: string;
+    wardCode: string;
+    provinceCode: string;
+  };
+}
 export interface IdentityFields {
   idNumber: string | null;
   fullName: string | null;
@@ -39,6 +58,7 @@ export interface VReadResult {
     confidence: number;
   };
   fields: DocumentFields;
+  addresses: Partial<Record<AddressField, NormalizedAddress>>;
   confidence: Partial<Record<FieldName, number>>;
   evidence: Partial<Record<FieldName, FieldEvidence>>;
   qr: QrResult;

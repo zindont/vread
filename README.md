@@ -32,6 +32,8 @@ Inputs: `File`, `Blob`, `ImageData`, `HTMLImageElement`, `HTMLCanvasElement`, `I
 
 Supported pilot: the front side of Vietnamese CCCD 2021, Căn cước 2024, and giấy phép lái xe. `documentType: 'auto'` detects CCCD or GPLX from OCR layout; choose `identity-card` or `driver-license` when the type is already known. GPLX results include `licenseNumber`, `licenseClass`, and `expiryStatus` (`indefinite` for a license without an expiry date). Fields outside the chosen document family remain `null`. Back-only and unknown images return `document.type: 'unknown'` with empty fields. Additional document families are planned: passport, vehicle registration, health insurance, and other Vietnamese documents.
 
+`vietnam-address-kit` validates recognized ward, district, and province names after OCR. When the match is unique and exact in the historical hierarchy, VRead corrects those administrative names and returns their codes in `result.addresses`. It keeps the address as printed on the document; the corresponding 2025 area is separate metadata and does not replace the document address. Street/hamlet text is kept from OCR because the administrative dataset does not validate it. Ambiguous or incomplete matches are left unchanged for review.
+
 ## Development
 
 ```bash

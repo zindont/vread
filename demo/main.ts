@@ -22,6 +22,8 @@ const section = document.querySelector<HTMLElement>('#result')!;
 const emptyResult = document.querySelector<HTMLElement>('#empty-result')!;
 const documentBox = document.querySelector<HTMLElement>('#document')!;
 const fields = document.querySelector<HTMLElement>('#fields')!;
+const addressDetails = document.querySelector<HTMLDetailsElement>('#address-details')!;
+const addressComponents = document.querySelector<HTMLElement>('#address-components')!;
 const qr = document.querySelector<HTMLElement>('#qr')!;
 const json = document.querySelector<HTMLElement>('#json')!;
 const ocr = document.querySelector<HTMLElement>('#ocr')!;
@@ -185,6 +187,29 @@ async function process(image: File, fromCamera = false) {
       row.append(name, data);
       fields.append(row);
     }
+    addressComponents.replaceChildren();
+    for (const [field, address] of Object.entries(result.addresses)) {
+      if (!address) continue;
+      const card = document.createElement('div');
+      card.className = 'address-card';
+      const title = document.createElement('strong');
+      title.textContent = field;
+      const components = document.createElement('p');
+      components.textContent = [
+        address.streetAddress && `Street/hamlet: ${address.streetAddress}`,
+        `Ward/commune: ${address.ward} (${address.wardCode})`,
+        address.district && `District: ${address.district} (${address.districtCode})`,
+        `Province: ${address.province} (${address.provinceCode})`,
+      ].filter(Boolean).join(' · ');
+      card.append(title, components);
+      if (address.currentAdministrativeArea) {
+        const current = document.createElement('p');
+        current.textContent = `2025 equivalent: ${address.currentAdministrativeArea.ward}, ${address.currentAdministrativeArea.province}`;
+        card.append(current);
+      }
+      addressComponents.append(card);
+    }
+    addressDetails.hidden = !addressComponents.childElementCount;
     qr.textContent = JSON.stringify(result.qr, null, 2);
     json.textContent = JSON.stringify(result, null, 2);
     ocr.textContent = JSON.stringify(result.ocrLines, null, 2);

@@ -10,6 +10,8 @@ export type {
   DocumentFields,
   DocumentChoice,
   DocumentType,
+  NormalizedAddress,
+  AddressField,
   FieldEvidence,
   QrResult,
 } from './core/types';
