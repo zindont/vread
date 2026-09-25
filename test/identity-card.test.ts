@@ -166,6 +166,10 @@ describe('identity card parser', () => {
     const lines = [line('Giới tính / Sex: Nữ Quốc tịch / Nationality: Việt Nam', 160)];
     expect(extractFields(lines).fields).toMatchObject({ sex: 'F', nationality: 'VN' });
   });
+  it('does not mistake a noisy Viet Nam nationality for male sex', () => {
+    const lines = [line('Gióitinh/Sex NG QudetehNanay Vit Nam', 160)];
+    expect(extractFields(lines).fields.sex).toBeNull();
+  });
   it('does not classify a back MRZ as a front', () => {
     const lines = [line('IDVNM1234567890123456789012<<5', 0), line('NGON TRO TRAI', 30)];
     expect(classifyIdentity(lines, { detected: false }).type).toBe('unknown');

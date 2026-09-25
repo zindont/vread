@@ -36,7 +36,7 @@ function candidate(
   if (field === 'sex') {
     const inline = anchor.text.match(/(?:sex|giới\s*tính)\s*[:：]?\s*(nam|nữ|nu|male|female)(?=\s|[.,;:]|$)/iu);
     if (inline) return { line: anchor, text: inline[1]!, score: 1 };
-    const vietnam = anchor.text.search(/vi[eéệ]t\s*nam/iu);
+    const vietnam = anchor.text.search(/\bvi(?:e|é|ệ)?t\s*nam\b/iu);
     const beforeNationality = vietnam >= 0 ? anchor.text.slice(0, vietnam) : anchor.text;
     const loose = beforeNationality.match(/(?:^|\s)(nam|nữ|nu|male|female)(?=\s|[.,;:]|$)/iu);
     if (loose) return { line: anchor, text: loose[1]!, score: 0.85 };

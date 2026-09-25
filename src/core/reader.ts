@@ -12,6 +12,7 @@ import { mergeQrFields } from '../qr/merge';
 import { DocumentRegistry, type DocumentAdapter } from '../documents/registry';
 import { identityCardAdapter } from '../documents/identity-card';
 import { anchorStrength } from '../documents/identity-card/classify';
+import { reconcileSexFromIdentityNumber } from '../documents/identity-card/sex-from-id';
 export class Reader {
   private registry = new DocumentRegistry();
   constructor(
@@ -88,6 +89,7 @@ export class Reader {
         /* Preserve PaddleOCR results if the optional Vietnamese pass fails. */
       }
     }
+    if (detection.type === 'vn.identity_card') reconcileSexFromIdentityNumber(parsed);
     mergeQrFields(parsed, qr);
     const parseMs = performance.now() - parseStart;
     options.onProgress?.('done');

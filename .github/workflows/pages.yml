@@ -31,7 +31,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run typecheck
-      - run: pnpm exec vitest run test/identity-card.test.ts test/qr-merge.test.ts test/vietnamese-address.test.ts
+      - run: pnpm exec vitest run test/identity-card.test.ts test/sex-from-id.test.ts test/qr-merge.test.ts test/vietnamese-address.test.ts
       - run: pnpm run build
         env:
           GITHUB_PAGES: 'true'
