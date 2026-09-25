@@ -11,8 +11,8 @@ import {
 } from './feedback';
 import './style.css';
 const file = document.querySelector<HTMLInputElement>('#file')!;
-const documentTypeSelect = document.querySelector<HTMLSelectElement>('#document-type')!;
-const drop = document.querySelector<HTMLLabelElement>('#drop')!;
+const selectImageButton = document.querySelector<HTMLButtonElement>('#select-image-button')!;
+const drop = document.querySelector<HTMLElement>('#drop')!;
 const status = document.querySelector<HTMLElement>('#status')!;
 const progressContainer = document.querySelector<HTMLElement>('#progress-container')!;
 const progress = document.querySelector<HTMLProgressElement>('#progress')!;
@@ -138,8 +138,10 @@ async function process(image: File, fromCamera = false) {
   busy = true;
   currentImage = undefined;
   currentFields = undefined;
-  currentChoice = documentTypeSelect.value as DocumentChoice;
+  currentChoice = document.querySelector<HTMLInputElement>('input[name="document-type"]:checked')!.value as DocumentChoice;
   file.disabled = true;
+  selectImageButton.disabled = true;
+  cameraButton.disabled = true;
   if (url) URL.revokeObjectURL(url);
   url = URL.createObjectURL(image);
   preview.src = url;
@@ -200,6 +202,8 @@ async function process(image: File, fromCamera = false) {
     window.clearInterval(timer);
     elapsed.textContent = `${Math.floor((performance.now() - started) / 1000)}s elapsed`;
     file.disabled = false;
+    selectImageButton.disabled = false;
+    cameraButton.disabled = false;
     file.value = '';
     busy = false;
   }
@@ -456,6 +460,7 @@ file.addEventListener('change', () => {
   const image = file.files?.[0];
   if (image) void process(image);
 });
+selectImageButton.addEventListener('click', () => file.click());
 drop.addEventListener('dragover', (event) => {
   event.preventDefault();
   drop.classList.add('over');
