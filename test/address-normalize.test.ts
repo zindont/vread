@@ -44,4 +44,19 @@ describe('administrative address normalization', () => {
       ward: 'Bắc Nha Trang', district: null, province: 'Khánh Hòa', districtCode: null,
     });
   });
+  it('repairs OCR spelling errors in a three-level address using cross-checked hierarchy', () => {
+    const address = normalizeDocumentAddress('Ấp A, X. Thun Thành, H. Càn Giuc, T. Long An');
+    expect(address?.normalized).toBe('Ấp A, X. Thuận Thành, H. Cần Giuộc, T. Long An');
+    expect(address?.districtCode).toBe('807');
+  });
+  it('repairs OCR accent errors in a two-level address with a street component', () => {
+    const address = normalizeDocumentAddress('123 Lê Lợi, P. Bắc Nha Tràng, Khánh Hòa');
+    expect(address?.normalized).toBe('123 Lê Lợi, P. Bắc Nha Trang, Khánh Hòa');
+    expect(address?.district).toBeNull();
+  });
+  it('does not reinterpret an old three-level address as a new two-level address', () => {
+    const address = normalizeDocumentAddress('Diên Thạnh, Diên Khánh, Khánh Hòa');
+    expect(address).toMatchObject({ ward: 'Diên Thạnh', district: 'Diên Khánh', province: 'Khánh Hòa' });
+    expect(normalizeDocumentAddress('Tổ 1, Không Rõ, Nha Trang, Khánh Hòa')).toBeNull();
+  });
 });
