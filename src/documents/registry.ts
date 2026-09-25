@@ -2,31 +2,35 @@ import type { OCRLine } from '../ocr/types';
 import type {
   DocumentSide,
   DocumentVersion,
-  IdentityFields,
+  DocumentFields,
+  DocumentType,
   QrResult,
   FieldEvidence,
   FieldName,
 } from '../core/types';
 export interface DetectionResult {
-  type: 'vn.identity_card' | 'unknown';
+  type: DocumentType;
   version: DocumentVersion;
   side: DocumentSide;
   confidence: number;
 }
 export interface ExtractionResult {
-  fields: IdentityFields;
+  fields: DocumentFields;
   confidence: Partial<Record<FieldName, number>>;
   evidence: Partial<Record<FieldName, FieldEvidence>>;
 }
 export interface DocumentAdapter {
   id: string;
   detect(lines: OCRLine[], qr: QrResult): DetectionResult;
-  extract(lines: OCRLine[], detection: DetectionResult): ExtractionResult;
+  extract(lines: OCRLine[], detection: DetectionResult, rawLines?: OCRLine[]): ExtractionResult;
 }
 export class DocumentRegistry {
   private adapters: DocumentAdapter[] = [];
   register(adapter: DocumentAdapter): void {
     this.adapters.push(adapter);
+  }
+  get(id: DocumentType): DocumentAdapter | null {
+    return this.adapters.find((adapter) => adapter.id === id) ?? null;
   }
   detect(
     lines: OCRLine[],

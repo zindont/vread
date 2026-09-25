@@ -14,7 +14,7 @@ Turn Vietnamese documents into structured data directly in the browser.
 
 ## Status
 
-VRead is an early CCCD pilot. Real-document accuracy has not been measured. Model files and ONNX runtime assets are downloaded on first use; identity images remain in the browser.
+VRead is an early CCCD and driver license pilot. Real-document accuracy has not been measured. Model files and ONNX runtime assets are downloaded on first use; document images remain in the browser.
 
 ## Use the reader
 
@@ -25,11 +25,12 @@ import { read, createReader } from './src';
 const result = await read(file);
 const reader = await createReader({ backend: 'wasm', documentType: 'auto' });
 const another = await reader.read(file, { documentType: 'identity-card' });
+const license = await reader.read(file, { documentType: 'driver-license' });
 ```
 
 Inputs: `File`, `Blob`, `ImageData`, `HTMLImageElement`, `HTMLCanvasElement`, `ImageBitmap`. Run from a browser served over HTTP(S). `createReader` loads PP-OCRv5 detection and Latin recognition models, which may take time on first use. OCR runs in a Web Worker. A targeted Tesseract Vietnamese pass rereads detected name and address lines; its language model is downloaded on first use. The output includes normalized fields, confidence, evidence, QR data, OCR lines, and phase timings. In the API, `sex` uses `M`/`F` and Vietnamese nationality uses `VN`; the demo displays their full Vietnamese labels too.
 
-Supported pilot: the front side of Vietnamese CCCD 2021 and Căn cước 2024. Back-only and unknown images return `document.type: 'unknown'` with empty fields. Additional document families are planned: passport, driver license, vehicle registration, health insurance, and other Vietnamese documents.
+Supported pilot: the front side of Vietnamese CCCD 2021, Căn cước 2024, and giấy phép lái xe. `documentType: 'auto'` detects CCCD or GPLX from OCR layout; choose `identity-card` or `driver-license` when the type is already known. GPLX results include `licenseNumber`, `licenseClass`, and `expiryStatus` (`indefinite` for a license without an expiry date). Fields outside the chosen document family remain `null`. Back-only and unknown images return `document.type: 'unknown'` with empty fields. Additional document families are planned: passport, vehicle registration, health insurance, and other Vietnamese documents.
 
 ## Development
 
@@ -39,13 +40,13 @@ cd vread
 pnpm install
 pnpm demo
 pnpm typecheck
-pnpm test
+pnpm exec vitest run test/driver-license.test.ts
 pnpm build
 ```
 
 The playground is deployed from `demo/dist` to GitHub Pages by `.github/workflows/pages.yml` on pushes to `main`. The deployment build sets the Vite base path to `/vread/`; local development stays at `/`. GitHub Pages serves the code over HTTPS, so camera access is available after the user grants browser permission. OCR models are fetched on first use. Images and corrections stay in the user's browser.
 
-Open the demo URL shown by Vite and select, drop, or capture a front-side image with the camera. Align the card inside the camera guide. The camera uses only lightweight brightness, detail, and motion measurements to choose a clear frame, then stops the video stream. OCR runs once on the captured still image. Manual capture remains available. Camera access requires HTTPS or localhost and is stopped after capture or when the camera panel closes. For a vertically stacked front/back sample, only the front OCR region is used; a separate front crop gives OCR more pixels and generally works better. The demo has no backend, analytics, upload, or remote logging. Keep private test images under `fixtures/private/`; this directory is ignored by Git. Do not add real identity documents to tests, snapshots, or commits.
+Open the demo URL shown by Vite, choose auto detection or a known document type, then select, drop, or capture a front-side image with the camera. Align the document inside the camera guide. The camera uses only lightweight brightness, detail, and motion measurements to choose a clear frame, then stops the video stream. OCR runs once on the captured still image. Manual capture remains available. Camera access requires HTTPS or localhost and is stopped after capture or when the camera panel closes. For a vertically stacked front/back CCCD sample, only the front OCR region is used; a separate front crop gives OCR more pixels and generally works better. The demo has no backend, analytics, upload, or remote logging. Keep private test images under `fixtures/private/`; this directory is ignored by Git. Do not add real identity documents to tests, snapshots, or commits.
 
 To track accuracy without sending images anywhere, expand **Correct results and track accuracy** in the demo. Edit incorrect fields and choose **Save corrected sample**. This stores the image and corrected values in this browser's IndexedDB only after you click Save. **Recheck saved samples** runs the current reader against every saved image and reports matching fields and remaining errors. **Delete saved samples** removes the stored data. Browser storage may be cleared by the browser, and these samples are not shared with other browsers or machines. Corrections form a local regression set; they do not automatically retrain the OCR model. Fine-tuning would require a larger, consented and labeled dataset plus a separate offline training process.
 

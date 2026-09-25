@@ -4,14 +4,14 @@ import { VReadError } from './errors';
 import { normalizeImage } from '../image/normalize';
 import { rotateCanvas } from '../image/rotate';
 import { createPaddleEngine } from '../ocr/paddle';
-import { refineVietnameseFields } from '../ocr/vietnamese';
+import { refineVietnameseFields, refineDriverLicenseVietnamese } from '../ocr/vietnamese';
 import type { OcrEngine, OCRLine } from '../ocr/types';
 import { mergeOcrRows } from '../ocr/rows';
 import { decodeQr } from '../qr/zxing';
 import { mergeQrFields } from '../qr/merge';
 import { DocumentRegistry, type DocumentAdapter } from '../documents/registry';
 import { identityCardAdapter } from '../documents/identity-card';
-import { anchorStrength } from '../documents/identity-card/classify';
+import { driverLicenseAdapter } from '../documents/driver-license';
 import { reconcileSexFromIdentityNumber } from '../documents/identity-card/sex-from-id';
 export class Reader {
   private registry = new DocumentRegistry();
@@ -20,17 +20,15 @@ export class Reader {
     private options: ReaderOptions = {},
   ) {
     this.registry.register(identityCardAdapter);
+    this.registry.register(driverLicenseAdapter);
   }
   register(adapter: DocumentAdapter): void {
     this.registry.register(adapter);
   }
   async read(input: ImageInput, options: ReadOptions = {}): Promise<VReadResult> {
-    if (
-      options.documentType &&
-      options.documentType !== 'auto' &&
-      options.documentType !== 'identity-card'
-    )
-      throw new VReadError('UNSUPPORTED_DOCUMENT', 'Only identity-card is supported');
+    const choice = options.documentType ?? this.options.documentType ?? 'auto';
+    if (!['auto', 'identity-card', 'driver-license'].includes(choice))
+      throw new VReadError('UNSUPPORTED_DOCUMENT', 'Unsupported document type');
     const start = performance.now();
     const prepStart = performance.now();
     options.onProgress?.('preprocess');
@@ -45,16 +43,17 @@ export class Reader {
     let rawLines: OCRLine[] = await this.ocr.recognize(canvas);
     let lines = mergeOcrRows(rawLines);
     let activeCanvas = canvas;
-    if (anchorStrength(lines) < 0.55) {
-      let best = anchorStrength(lines);
+    const strength = (candidate: OCRLine[]) => this.registry.detect(candidate, qr).detection.confidence;
+    if (strength(lines) < 0.55) {
+      let best = strength(lines);
       for (const angle of [90, 180, 270] as const) {
         options.onProgress?.('rotation');
         const rotated = rotateCanvas(canvas, angle);
         const candidateRaw = await this.ocr.recognize(rotated);
         const candidate = mergeOcrRows(candidateRaw);
-        const strength = anchorStrength(candidate);
-        if (strength > best) {
-          best = strength;
+        const candidateStrength = strength(candidate);
+        if (candidateStrength > best) {
+          best = candidateStrength;
           lines = candidate;
           rawLines = candidateRaw;
           activeCanvas = rotated;
@@ -71,17 +70,25 @@ export class Reader {
     const ocrMs = performance.now() - ocrStart;
     const parseStart = performance.now();
     options.onProgress?.('parse');
-    const { adapter, detection } = this.registry.detect(lines, qr);
-    if (detection.type === 'unknown' && qr.parsed) {
+    let { adapter, detection } = this.registry.detect(lines, qr);
+    if (choice !== 'auto') {
+      const selectedType = choice === 'identity-card' ? 'vn.identity_card' : 'vn.driver_license';
+      adapter = this.registry.get(selectedType);
+      detection = adapter?.detect(lines, qr) ?? detection;
+      if (detection.type === 'unknown')
+        detection = { type: selectedType, version: 'unknown', side: 'unknown', confidence: 0.3 };
+    }
+    if (choice === 'auto' && detection.type === 'unknown' && qr.parsed) {
       detection.type = 'vn.identity_card';
       detection.confidence = 0.6;
+      adapter = this.registry.get('vn.identity_card');
     }
-    const parsed = adapter?.extract(lines, detection) ?? {
+    const parsed = adapter?.extract(lines, detection, rawLines) ?? {
       fields: { ...EMPTY_FIELDS },
       confidence: {},
       evidence: {},
     };
-    if (detection.type !== 'unknown') {
+    if (detection.type === 'vn.identity_card') {
       options.onProgress?.('vietnamese');
       try {
         await refineVietnameseFields(activeCanvas, lines, parsed, rawLines);
@@ -89,8 +96,16 @@ export class Reader {
         /* Preserve PaddleOCR results if the optional Vietnamese pass fails. */
       }
     }
+    if (detection.type === 'vn.driver_license') {
+      options.onProgress?.('vietnamese');
+      try {
+        await refineDriverLicenseVietnamese(activeCanvas, parsed, rawLines);
+      } catch {
+        /* Preserve other license fields when optional Vietnamese OCR fails. */
+      }
+    }
     if (detection.type === 'vn.identity_card') reconcileSexFromIdentityNumber(parsed);
-    mergeQrFields(parsed, qr);
+    if (detection.type === 'vn.identity_card') mergeQrFields(parsed, qr);
     const parseMs = performance.now() - parseStart;
     options.onProgress?.('done');
     return {

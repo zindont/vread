@@ -1,11 +1,12 @@
 import type { OCRLine } from '../../../ocr/types';
 import type { ExtractionResult } from '../../registry';
-import { EMPTY_FIELDS, type FieldName } from '../../../core/types';
+import { EMPTY_FIELDS, type IdentityFields } from '../../../core/types';
 import { fieldScore } from '../../../core/confidence';
 import { fold, afterLabel, labelScore } from '../../../utils/text';
 import { normalizeDate } from '../../../utils/date';
 import { normalizeId, normalizeName, normalizeSex, normalizeNationality } from '../normalize';
-const LABELS: Partial<Record<FieldName, string[]>> = {
+type IdentityFieldName = keyof IdentityFields;
+const LABELS: Partial<Record<IdentityFieldName, string[]>> = {
   idNumber: ['so', 'no', 'so dinh danh ca nhan', 'personal identification number'],
   fullName: ['ho va ten', 'ho chu dem va ten khai sinh', 'full name'],
   dateOfBirth: ['ngay sinh', 'ngay thang nam sinh', 'date of birth'],
@@ -16,7 +17,7 @@ const LABELS: Partial<Record<FieldName, string[]>> = {
   dateOfIssue: ['ngay cap', 'date of issue'],
   dateOfExpiry: ['co gia tri den', 'date of expiry', 'valid until'],
 };
-const NORMALIZERS: Record<FieldName, (text: string) => string | null> = {
+const NORMALIZERS: Record<IdentityFieldName, (text: string) => string | null> = {
   idNumber: normalizeId,
   fullName: normalizeName,
   dateOfBirth: normalizeDate,
@@ -30,7 +31,7 @@ const NORMALIZERS: Record<FieldName, (text: string) => string | null> = {
 function candidate(
   lines: OCRLine[],
   index: number,
-  field: FieldName,
+  field: IdentityFieldName,
 ): { line: OCRLine; text: string; score: number } | null {
   const anchor = lines[index]!;
   if (field === 'sex') {
@@ -89,7 +90,7 @@ export function extractFields(lines: OCRLine[]): ExtractionResult {
   const sorted = [...lines].sort(
     (a, b) => a.boundingBox.y - b.boundingBox.y || a.boundingBox.x - b.boundingBox.x,
   );
-  for (const field of Object.keys(LABELS) as FieldName[]) {
+  for (const field of Object.keys(LABELS) as IdentityFieldName[]) {
     let best: { line: OCRLine; text: string; score: number; anchor: number } | null = null;
     sorted.forEach((line, index) => {
       const alias = (LABELS[field] ?? []).find((a) => labelScore(line.text, a) >= 0.72);

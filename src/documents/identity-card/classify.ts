@@ -2,6 +2,7 @@ import type { OCRLine } from '../../ocr/types';
 import type { QrResult } from '../../core/types';
 import type { DetectionResult } from '../registry';
 import { labelScore } from '../../utils/text';
+import { fold } from '../../utils/text';
 import { CCCD_2021 } from './templates/cccd-2021';
 import { IDENTITY_2024 } from './templates/identity-card-2024';
 const FRONT = [...CCCD_2021.front, ...IDENTITY_2024.front];
@@ -9,6 +10,8 @@ const NAME = ['ho va ten', 'ho chu dem va ten khai sinh', 'full name'];
 const DOB = ['ngay sinh', 'ngay thang nam sinh', 'date of birth'];
 const SEX = ['gioi tinh', 'sex'];
 export function classifyIdentity(lines: OCRLine[], qr: QrResult): DetectionResult {
+  if (lines.some((line) => /(?:driver s licen[sc]e|giay phep lai ?xe)/.test(fold(line.text))))
+    return { type: 'unknown', version: 'unknown', side: 'unknown', confidence: 0 };
   const has = (labels: readonly string[]) =>
     lines.some((line) => labels.some((label) => labelScore(line.text, label) >= 0.72));
   const cccd = has(CCCD_2021.version);

@@ -11,7 +11,7 @@ export function normalizeSex(text: string): 'M' | 'F' | null {
   return null;
 }
 export function normalizeNationality(text: string): string | null {
-  return /\b(viet nam|vietnam|vietnamese)\b/.test(fold(text)) ? 'VN' : null;
+  return /\b(viet nam|vit nam|vietnam|vietnamese)\b/.test(fold(text)) ? 'VN' : null;
 }
 export function normalizeName(text: string): string | null {
   const value = text.trim().replace(/\s+/g, ' ').toLocaleUpperCase('vi-VN');

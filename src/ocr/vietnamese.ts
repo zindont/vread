@@ -224,3 +224,56 @@ export async function refineVietnameseFields(
     await worker.terminate();
   }
 }
+
+export async function refineDriverLicenseVietnamese(
+  image: HTMLCanvasElement,
+  result: ExtractionResult,
+  rawLines: OCRLine[],
+): Promise<void> {
+  const nameBox = result.evidence.fullName?.box;
+  const addressBox = result.evidence.placeOfResidence?.box;
+  if (!nameBox && !addressBox) return;
+  const worker = await createWorker('vie');
+  try {
+    await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_LINE });
+    if (nameBox) {
+      const sourceCrop = cropLine(image, nameBox, 4, 0.15);
+      const readings = [
+        (await worker.recognize(sourceCrop)).data,
+        (await worker.recognize(thresholdCanvas(cropLine(image, nameBox, 4, 0.15), 135))).data,
+      ];
+      const data = readings.sort((a, b) => b.confidence - a.confidence)[0]!;
+      const name = normalizeName(cleanText(data.text).replace(/^ĐÀNG\b/iu, 'ĐẶNG'));
+      if (name && data.confidence >= 55 && similarEnough(name, result.evidence.fullName?.rawText ?? '')) {
+        result.fields.fullName = name;
+        result.confidence.fullName = Math.min(0.95, data.confidence / 100);
+        result.evidence.fullName = { source: 'ocr', rawText: data.text.trim(), confidence: data.confidence / 100, box: nameBox };
+      }
+    }
+    if (addressBox) {
+      const source = result.evidence.placeOfResidence?.rawText ?? '';
+      const candidates = rawLines
+        .filter((line) => line.boundingBox.y >= addressBox.y - 3 && line.boundingBox.y < addressBox.y + addressBox.height + 38)
+        .filter((line) => line.boundingBox.x >= Math.min(addressBox.x, 170) - 8)
+        .sort((a, b) => a.boundingBox.y - b.boundingBox.y);
+      const first = await worker.recognize(cropLine(image, addressBox, 4, 0.15));
+      const parts = [cleanText(first.data.text)];
+      const next = candidates.find((line) => line.boundingBox.y > addressBox.y + addressBox.height * 0.7);
+      let confidence = first.data.confidence;
+      if (next) {
+        const second = await worker.recognize(cropLine(image, next.boundingBox, 4, 0.15));
+        parts.push(cleanText(second.data.text));
+        confidence = Math.min(confidence, second.data.confidence);
+      }
+      const address = normalizePlaceCase(parts.filter(Boolean).join(', '))
+        .replace(/\bH[EÈÉ]?\.(?=\s)/giu, 'H.');
+      if (address && confidence >= 50 && similarEnough(address, source)) {
+        result.fields.placeOfResidence = address;
+        result.confidence.placeOfResidence = Math.min(0.95, confidence / 100);
+        result.evidence.placeOfResidence = { source: 'ocr', rawText: parts.join(', '), confidence: confidence / 100, box: addressBox };
+      }
+    }
+  } finally {
+    await worker.terminate();
+  }
+}

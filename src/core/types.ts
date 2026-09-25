@@ -1,8 +1,9 @@
 import type { OCRLine } from '../ocr/types';
 export type DocumentVersion = '2021' | '2024' | 'unknown';
 export type DocumentSide = 'front' | 'back' | 'unknown';
-export type DocumentType = 'vn.identity_card' | 'unknown';
-export type FieldName = keyof IdentityFields;
+export type DocumentType = 'vn.identity_card' | 'vn.driver_license' | 'unknown';
+export type DocumentChoice = 'auto' | 'identity-card' | 'driver-license';
+export type FieldName = keyof DocumentFields;
 export interface IdentityFields {
   idNumber: string | null;
   fullName: string | null;
@@ -13,6 +14,11 @@ export interface IdentityFields {
   placeOfResidence: string | null;
   dateOfIssue: string | null;
   dateOfExpiry: string | null;
+}
+export interface DocumentFields extends IdentityFields {
+  licenseNumber: string | null;
+  licenseClass: string | null;
+  expiryStatus: 'indefinite' | null;
 }
 export interface FieldEvidence {
   source: 'ocr' | 'qr' | 'derived';
@@ -32,7 +38,7 @@ export interface VReadResult {
     side: DocumentSide;
     confidence: number;
   };
-  fields: IdentityFields;
+  fields: DocumentFields;
   confidence: Partial<Record<FieldName, number>>;
   evidence: Partial<Record<FieldName, FieldEvidence>>;
   qr: QrResult;
@@ -49,17 +55,17 @@ export interface VReadResult {
 export type ImageInput = Blob | ImageData | HTMLImageElement | HTMLCanvasElement | ImageBitmap;
 export interface ReaderOptions {
   backend?: 'wasm' | 'webgpu';
-  documentType?: 'auto' | 'identity-card';
+  documentType?: DocumentChoice;
   debug?: boolean;
   maxImageSide?: number;
 }
 export interface ReadOptions {
-  documentType?: 'auto' | 'identity-card';
+  documentType?: DocumentChoice;
   onProgress?: (stage: ReadProgressStage) => void;
 }
 export type ReadProgressStage =
   'preprocess' | 'qr' | 'ocr' | 'rotation' | 'parse' | 'vietnamese' | 'done';
-export const EMPTY_FIELDS: IdentityFields = {
+export const EMPTY_FIELDS: DocumentFields = {
   idNumber: null,
   fullName: null,
   dateOfBirth: null,
@@ -69,4 +75,7 @@ export const EMPTY_FIELDS: IdentityFields = {
   placeOfResidence: null,
   dateOfIssue: null,
   dateOfExpiry: null,
+  licenseNumber: null,
+  licenseClass: null,
+  expiryStatus: null,
 };

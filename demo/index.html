@@ -9,17 +9,23 @@
     <main>
       <header>
         <h1>VRead</h1>
-        <p>Vietnamese identity card reader</p>
+        <p>Vietnamese identity card and driver license reader</p>
       </header>
       <p class="privacy">
         Processing happens locally in your browser. Your document image is not uploaded.
       </p>
       <p class="pilot">
-        Pilot: CCCD / Căn cước front side. Use a clear front-only photo for best accuracy; text in
+        Pilot: CCCD / Căn cước and giấy phép lái xe front side. Use a clear front-only photo for best accuracy; text in
         combined front/back samples may be too small.
       </p>
       <div class="workspace">
         <section class="input-panel" aria-label="Image input">
+          <label for="document-type">Document type</label>
+          <select id="document-type">
+            <option value="auto">Auto detect</option>
+            <option value="identity-card">CCCD / Căn cước</option>
+            <option value="driver-license">Giấy phép lái xe</option>
+          </select>
           <label id="drop" for="file"
             ><strong>Select an image</strong><span>or drag and drop it here</span
             ><input id="file" type="file" accept="image/*"
@@ -42,7 +48,7 @@
               <button id="close-camera-button" type="button">Close camera</button>
             </div>
           </div>
-          <p id="status" role="status">Choose a CCCD or Căn cước image.</p>
+          <p id="status" role="status">Choose a front-side document image.</p>
           <div id="progress-container" hidden>
             <progress id="progress" max="1" aria-label="Document processing progress"></progress>
             <span id="elapsed">0s elapsed</span>

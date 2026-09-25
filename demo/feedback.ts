@@ -1,7 +1,7 @@
-import type { FieldName, IdentityFields } from '../src/core/types';
+import type { DocumentChoice, DocumentFields, DocumentType, FieldName, IdentityFields } from '../src/core/types';
 import { normalizeDate } from '../src/utils/date';
 
-export const FIELD_NAMES: FieldName[] = [
+export const IDENTITY_FIELD_NAMES: FieldName[] = [
   'idNumber',
   'fullName',
   'dateOfBirth',
@@ -12,18 +12,28 @@ export const FIELD_NAMES: FieldName[] = [
   'dateOfIssue',
   'dateOfExpiry',
 ];
+export const LICENSE_FIELD_NAMES: FieldName[] = [
+  'licenseNumber', 'fullName', 'dateOfBirth', 'nationality', 'placeOfResidence',
+  'dateOfIssue', 'licenseClass', 'dateOfExpiry', 'expiryStatus',
+];
+export function fieldsFor(type: DocumentType): FieldName[] {
+  return type === 'vn.driver_license' ? LICENSE_FIELD_NAMES : IDENTITY_FIELD_NAMES;
+}
 
 export interface SavedSample {
   id: string;
   fileName: string;
   image: Blob;
-  expected: IdentityFields;
-  baseline: IdentityFields;
+  expected: DocumentFields;
+  baseline: DocumentFields;
+  documentType?: DocumentChoice;
+  detectedType?: DocumentType;
   savedAt: string;
 }
 
-export function compareFields(actual: IdentityFields, expected: IdentityFields): FieldName[] {
-  return FIELD_NAMES.filter((field) => actual[field] !== expected[field]);
+export function compareFields(actual: IdentityFields | DocumentFields, expected: IdentityFields | DocumentFields, type: DocumentType = 'vn.identity_card'): FieldName[] {
+  return fieldsFor(type).filter((field) =>
+    (actual as unknown as Record<string, string | null>)[field] !== (expected as unknown as Record<string, string | null>)[field]);
 }
 
 export function normalizeCorrectionDate(raw: string): string | null {

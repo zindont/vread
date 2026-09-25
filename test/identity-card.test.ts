@@ -61,6 +61,9 @@ describe('identity card parser', () => {
         'placeOfResidence',
         'dateOfIssue',
         'dateOfExpiry',
+        'licenseNumber',
+        'licenseClass',
+        'expiryStatus',
       ].sort(),
     );
   });

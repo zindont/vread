@@ -1,8 +1,8 @@
-import { createReader, type IdentityFields, type ReadProgressStage } from '../src';
+import { createReader, type DocumentChoice, type DocumentFields, type DocumentType, type ReadProgressStage } from '../src';
 import { advanceCaptureProgress, evaluateFrame } from './camera-detection';
 import { normalizeSex, normalizeNationality } from '../src/documents/identity-card/normalize';
 import {
-  FIELD_NAMES,
+  fieldsFor,
   clearSamples,
   compareFields,
   listSamples,
@@ -11,6 +11,7 @@ import {
 } from './feedback';
 import './style.css';
 const file = document.querySelector<HTMLInputElement>('#file')!;
+const documentTypeSelect = document.querySelector<HTMLSelectElement>('#document-type')!;
 const drop = document.querySelector<HTMLLabelElement>('#drop')!;
 const status = document.querySelector<HTMLElement>('#status')!;
 const progressContainer = document.querySelector<HTMLElement>('#progress-container')!;
@@ -50,7 +51,9 @@ let bestCameraFrame: HTMLCanvasElement | undefined;
 let bestCameraSharpness = 0;
 let autoCapturing = false;
 let currentImage: File | undefined;
-let currentFields: IdentityFields | undefined;
+let currentFields: DocumentFields | undefined;
+let currentType: DocumentType = 'unknown';
+let currentChoice: DocumentChoice = 'auto';
 const stageText: Record<ReadProgressStage, string> = {
   preprocess: 'Preparing the image locally…',
   qr: 'Checking for a QR code…',
@@ -71,9 +74,9 @@ function editField(key: string, value: string | null): string {
   if (key === 'nationality') return value === 'VN' ? 'Việt Nam' : value;
   return value;
 }
-function renderCorrections(values: IdentityFields) {
+function renderCorrections(values: DocumentFields) {
   correctionFields.replaceChildren();
-  for (const field of FIELD_NAMES) {
+  for (const field of fieldsFor(currentType)) {
     const row = document.createElement('label');
     row.className = 'correction-row';
     const name = document.createElement('span');
@@ -86,9 +89,9 @@ function renderCorrections(values: IdentityFields) {
     correctionFields.append(row);
   }
 }
-function correctedFields(): IdentityFields {
-  const result = {} as IdentityFields;
-  for (const field of FIELD_NAMES) {
+function correctedFields(): DocumentFields {
+  const result = { ...currentFields! };
+  for (const field of fieldsFor(currentType)) {
     const raw = correctionFields.querySelector<HTMLInputElement>(`input[name="${field}"]`)!.value.trim();
     if (field === 'sex') {
       const value = raw ? normalizeSex(raw) : null;
@@ -100,8 +103,11 @@ function correctedFields(): IdentityFields {
       const value = raw ? normalizeCorrectionDate(raw) : null;
       if (raw && !value) throw new Error(`${field} must be a valid date (YYYY-MM-DD).`);
       result[field] = value;
+    } else if (field === 'expiryStatus') {
+      if (raw && raw !== 'indefinite') throw new Error('expiryStatus must be indefinite or empty.');
+      result.expiryStatus = raw ? 'indefinite' : null;
     } else {
-      result[field] = raw || null;
+      (result as unknown as Record<string, string | null>)[field] = raw || null;
     }
   }
   return result;
@@ -132,6 +138,7 @@ async function process(image: File, fromCamera = false) {
   busy = true;
   currentImage = undefined;
   currentFields = undefined;
+  currentChoice = documentTypeSelect.value as DocumentChoice;
   file.disabled = true;
   if (url) URL.revokeObjectURL(url);
   url = URL.createObjectURL(image);
@@ -153,14 +160,15 @@ async function process(image: File, fromCamera = false) {
   elapsed.textContent = '0s elapsed';
   await new Promise((resolve) => setTimeout(resolve, 30));
   try {
-    const result = await (await getReader()).read(image, { onProgress: updateStage });
+    const result = await (await getReader()).read(image, { documentType: currentChoice, onProgress: updateStage });
     progress.value = 1;
     status.textContent = result.document.type === 'unknown'
-      ? 'Front side not identified. Adjust the card and scan again.'
+      ? 'Document not identified. Select its type or try a clearer front-side image.'
       : `Done in ${((performance.now() - started) / 1000).toFixed(1)}s.`;
     documentBox.textContent = `${result.document.type} · ${result.document.version} · ${result.document.side} · confidence ${result.document.confidence.toFixed(2)}`;
     fields.replaceChildren();
-    for (const [key, value] of Object.entries(result.fields)) {
+    for (const key of fieldsFor(result.document.type)) {
+      const value = result.fields[key];
       const row = document.createElement('div');
       row.className = 'row';
       const name = document.createElement('strong');
@@ -180,6 +188,7 @@ async function process(image: File, fromCamera = false) {
     ocr.textContent = JSON.stringify(result.ocrLines, null, 2);
     currentImage = image;
     currentFields = result.fields;
+    currentType = result.document.type;
     renderCorrections(result.fields);
     feedbackStatus.textContent = '';
     section.hidden = false;
@@ -209,10 +218,12 @@ saveCorrection.addEventListener('click', async () => {
       image: currentImage,
       expected,
       baseline: currentFields,
+      documentType: currentChoice,
+      detectedType: currentType,
       savedAt: new Date().toISOString(),
     });
     const count = (await listSamples()).length;
-    const mismatches = compareFields(currentFields, expected);
+    const mismatches = compareFields(currentFields, expected, currentType);
     feedbackStatus.textContent = `Saved locally: ${count} sample(s). Current OCR differs in ${mismatches.length} field(s): ${mismatches.join(', ') || 'none'}.`;
   } catch (error) {
     feedbackStatus.textContent = error instanceof Error ? error.message : String(error);
@@ -237,14 +248,16 @@ runChecks.addEventListener('click', async () => {
       feedbackStatus.textContent = `Rechecking ${index + 1}/${samples.length}: ${sample.fileName}…`;
       await new Promise((resolve) => setTimeout(resolve, 30));
       const result = await reader.read(sample.image, {
-        documentType: 'identity-card',
+        documentType: sample.documentType ?? 'identity-card',
       });
-      const wrong = compareFields(result.fields, sample.expected);
-      matched += FIELD_NAMES.length - wrong.length;
-      baselineMatched += FIELD_NAMES.length - compareFields(sample.baseline, sample.expected).length;
+      const type = sample.detectedType ?? 'vn.identity_card';
+      const fieldCount = fieldsFor(type).length;
+      const wrong = compareFields(result.fields, sample.expected, type);
+      matched += fieldCount - wrong.length;
+      baselineMatched += fieldCount - compareFields(sample.baseline, sample.expected, type).length;
       if (wrong.length) failures.push(`${sample.fileName}: ${wrong.join(', ')}`);
     }
-    const total = samples.length * FIELD_NAMES.length;
+    const total = samples.reduce((sum, sample) => sum + fieldsFor(sample.detectedType ?? 'vn.identity_card').length, 0);
     feedbackStatus.textContent = `${matched}/${total} fields match (${baselineMatched}/${total} when saved). ${failures.length ? `Still wrong: ${failures.join('; ')}` : 'All saved samples match.'}`;
   } catch (error) {
     feedbackStatus.textContent = error instanceof Error ? error.message : String(error);
@@ -409,8 +422,8 @@ cameraButton.addEventListener('click', async () => {
     usableFrames = 0;
     bestCameraFrame = undefined;
     bestCameraSharpness = 0;
-    cameraHint.textContent = 'Align the front of the card inside the frame. Capture is automatic when steady.';
-    status.textContent = 'Camera ready. Hold the front of the card inside the frame.';
+    cameraHint.textContent = 'Align the front of the document inside the frame. Capture is automatic when steady.';
+    status.textContent = 'Camera ready. Hold the front of the document inside the frame.';
     cameraTimer = window.setInterval(() => { void inspectCameraFrame(); }, 450);
   } catch (error) {
     if (generation !== cameraGeneration) return;

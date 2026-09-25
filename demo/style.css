@@ -31,6 +31,17 @@ header p {
   color: #506778;
   font-size: 0.95rem;
 }
+#document-type {
+  display: block;
+  width: 100%;
+  margin: 8px 0 16px;
+  padding: 10px 12px;
+  border: 1px solid #7ca0b0;
+  border-radius: 8px;
+  background: white;
+  color: inherit;
+  font: inherit;
+}
 #drop {
   display: flex;
   flex-direction: column;

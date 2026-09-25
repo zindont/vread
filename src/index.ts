@@ -7,6 +7,9 @@ export type {
   ReadProgressStage,
   VReadResult,
   IdentityFields,
+  DocumentFields,
+  DocumentChoice,
+  DocumentType,
   FieldEvidence,
   QrResult,
 } from './core/types';
